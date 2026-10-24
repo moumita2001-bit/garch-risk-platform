@@ -224,3 +224,4 @@ __marimo__/
 *.db
 .terraform/
 *.tfstate*
+.DS_Store
