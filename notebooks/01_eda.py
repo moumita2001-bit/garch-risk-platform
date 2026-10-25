@@ -212,7 +212,7 @@ curve predicts about **{t['normal_expected_4sd_days']:.1f}**. Excess kurtosis of
 
 | Test (10 lags) | Statistic | p-value | Reading |
 | --- | --- | --- | --- |
-| Ljung-Box on returns | {a['lb_returns_stat']:.1f} | {fmt_p(a['lb_returns_p'])} | Weak: direction of returns is hard to predict |
+| Ljung-Box on returns | {a['lb_returns_stat']:.1f} | {fmt_p(a['lb_returns_p'])} | Significant but small: direction of returns is barely predictable |
 | Ljung-Box on squared returns | {a['lb_squared_stat']:.1f} | {fmt_p(a['lb_squared_p'])} | Strong: size of moves is predictable |
 | ARCH-LM | {a['arch_lm_stat']:.1f} | {fmt_p(a['arch_lm_p'])} | Volatility changes over time |
 
