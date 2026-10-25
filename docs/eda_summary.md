@@ -37,7 +37,7 @@ curve predicts about **0.3**. Excess kurtosis of
 
 | Test (10 lags) | Statistic | p-value | Reading |
 | --- | --- | --- | --- |
-| Ljung-Box on returns | 84.4 | < 0.0001 | Weak: direction of returns is hard to predict |
+| Ljung-Box on returns | 84.4 | < 0.0001 | Significant but small: direction of returns is barely predictable |
 | Ljung-Box on squared returns | 4022.7 | < 0.0001 | Strong: size of moves is predictable |
 | ARCH-LM | 1301.4 | < 0.0001 | Volatility changes over time |
 
