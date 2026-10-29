@@ -145,3 +145,43 @@ Student-t innovations, then turn conditional volatility into 1-day VaR.
 
 ### Next
 Turn the 1-day volatility forecast into Value-at-Risk.
+
+
+## Week 4 — Value-at-Risk and backtesting
+
+**Goal:** Turn the volatility forecast into 1-day 99% VaR and test it
+out of sample on SPY.
+
+### What I built
+- One-step variance forecast and `one_day_var` (normal and Student-t quantiles).
+- `rolling_var`: re-fit every 21 days on the previous 1,000 days; every
+  forecast uses only earlier data. A test proves it: changing future
+  returns leaves past forecasts unchanged (no look-ahead).
+- Kupiec (breach rate) and Christoffersen (breach clustering) tests,
+  Basel traffic-light zones.
+- `zero_mean` option and GJR-GARCH-t, added through the existing fit hooks.
+- 30 new tests (77 total).
+
+### Results: 3,732 test days, 37 breaches expected
+| Model | Breaches | Kupiec p | Christoffersen p |
+|---|---|---|---|
+| Normal GARCH | 87 | <0.001 | 0.208 |
+| Student-t GARCH | 59 | 0.001 | 0.016 |
+| Student-t, mu = 0 | 54 | 0.010 | 0.008 |
+| GJR-t, mu = 0 | 48 | 0.092 | 0.155 |
+
+### How I found the fix
+- Splitting breaches by tail: 1.58% on losses vs 0.21% on gains, so total
+  risk was about right but the distribution sat too far toward gains.
+- Fixing mu = 0 removed 5 breaches; the rest was asymmetry.
+- GJR on the full sample: gamma = 0.27, alpha = 0. Only down days raise
+  SPY volatility (the leverage effect).
+
+### What I learned
+- A backtest that fails is useful: it shows where the model is wrong.
+- Change one thing at a time and measure, rather than adding features
+  until the numbers pass.
+- 48 breaches still leans slightly high; the model passes, but only just.
+
+### Next
+FRED/VIX data and a one-command pipeline (Week 5).
