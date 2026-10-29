@@ -50,3 +50,19 @@ def test_no_arch_effects_gives_alpha_near_zero():
     est = GARCH().fit(returns).params
     assert est.alpha < 0.02
     assert est.long_run_variance == pytest.approx(1.0, rel=0.10)
+
+
+
+def test_zero_mean_option_fixes_mu_at_zero(recovered):
+    _, returns = recovered
+    fit = GARCH(zero_mean=True).fit(returns)
+    assert fit.converged, fit.message
+    assert fit.params.mu == 0.0
+    assert fit.params.alpha == pytest.approx(TRUE.alpha, abs=0.02)
+
+
+def test_zero_mean_option_is_inherited_by_student_t(recovered):
+    from volrisk.models import StudentTGARCH
+
+    _, returns = recovered
+    assert StudentTGARCH(zero_mean=True).fit(returns).params.mu == 0.0

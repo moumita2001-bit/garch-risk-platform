@@ -32,7 +32,7 @@ class GarchParams:
 
     @property
     def long_run_variance(self) -> float:
-        """Level the variance reverts to: omega / (1 - alpha - beta)."""
+        """Level the variance reverts to: omega / (1 - persistence)."""
         return self.omega / (1 - self.persistence)
 
     @property
@@ -41,7 +41,7 @@ class GarchParams:
         return np.log(0.5) / np.log(self.persistence)
 
     def is_valid(self) -> bool:
-        """omega > 0, alpha >= 0, beta >= 0 and alpha + beta < 1."""
+        """omega > 0, alpha >= 0, beta >= 0 and persistence < 1."""
         return (
             self.omega > 0
             and self.alpha >= 0
@@ -52,7 +52,7 @@ class GarchParams:
 
 @dataclass(frozen=True)
 class GarchFit:
-    """Result of fitting GARCH(1,1) to a return series."""
+    """Result of fitting a GARCH-family model to a return series."""
 
     params: GarchParams
     log_likelihood: float
@@ -76,14 +76,24 @@ class GarchFit:
 
 
 def garch_variance(
-    eps: np.ndarray, omega: float, alpha: float, beta: float, sigma2_0: float
+    eps: np.ndarray,
+    omega: float,
+    alpha: float,
+    beta: float,
+    sigma2_0: float,
+    gamma: float = 0.0,
 ) -> np.ndarray:
-    """Run the GARCH(1,1) recursion and return sigma^2_t for every day."""
+    """Run the GARCH(1,1) recursion and return sigma^2_t for every day.
+
+    gamma > 0 adds the GJR leverage term: negative shocks get weight
+    alpha + gamma instead of alpha. gamma = 0 is plain GARCH(1,1).
+    """
     n = len(eps)
     sigma2 = np.empty(n)
     sigma2[0] = sigma2_0
     for t in range(1, n):
-        sigma2[t] = omega + alpha * eps[t - 1] ** 2 + beta * sigma2[t - 1]
+        shock_weight = alpha + gamma * (eps[t - 1] < 0)
+        sigma2[t] = omega + shock_weight * eps[t - 1] ** 2 + beta * sigma2[t - 1]
     return sigma2
 
 
@@ -92,17 +102,34 @@ class GARCH(VolatilityModel):
 
     name = "GARCH(1,1)"
 
+    def __init__(self, zero_mean: bool = False):
+        """zero_mean=True fixes mu at 0 instead of estimating it, a common
+        choice for 1-day VaR because the daily mean is tiny and noisy."""
+        self.zero_mean = zero_mean
+
+    def variance_path(self, params: GarchParams, eps: np.ndarray, sigma2_0: float) -> np.ndarray:
+        """sigma^2_t for a series of shocks, starting the recursion at sigma2_0."""
+        gamma = getattr(params, "gamma", 0.0)  # only GJR models have gamma
+        return garch_variance(eps, params.omega, params.alpha, params.beta, sigma2_0, gamma)
+
     def conditional_variance(self, params: GarchParams, returns: np.ndarray) -> np.ndarray:
         eps = np.asarray(returns, dtype=float) - params.mu
         sigma2_0 = eps.var()  # start the recursion at the sample variance
-        return garch_variance(eps, params.omega, params.alpha, params.beta, sigma2_0)
+        return self.variance_path(params, eps, sigma2_0)
 
     def log_likelihood(self, params: GarchParams, returns: np.ndarray) -> float:
         eps = np.asarray(returns, dtype=float) - params.mu
         sigma2 = self.conditional_variance(params, returns)
         return float(-0.5 * np.sum(LOG_2PI + np.log(sigma2) + eps**2 / sigma2))
 
-    # --- Hooks that subclasses (e.g. Student-t) override -------------------
+    def forecast_variance(self, params: GarchParams, returns: np.ndarray) -> float:
+        """One-step-ahead forecast sigma2_{T+1}, from today's shock and variance."""
+        eps = np.asarray(returns, dtype=float) - params.mu
+        # Append a placeholder for tomorrow: sigma2[T+1] depends only on day T.
+        path = self.variance_path(params, np.append(eps, 0.0), eps.var())
+        return float(path[-1])
+
+    # --- Hooks that subclasses (e.g. Student-t, GJR) override ---------------
 
     def _make_params(self, x: np.ndarray) -> GarchParams:
         """Turn the optimizer's vector into a parameter object."""
@@ -112,10 +139,13 @@ class GARCH(VolatilityModel):
         """Starting point: typical equity values, omega set so the
         long-run variance equals the sample variance."""
         alpha0, beta0 = 0.05, 0.90
-        return np.array([r.mean(), r.var() * (1 - alpha0 - beta0), alpha0, beta0])
+        mu0 = 0.0 if self.zero_mean else r.mean()
+        var0 = np.mean((r - mu0) ** 2)
+        return np.array([mu0, var0 * (1 - alpha0 - beta0), alpha0, beta0])
 
     def _bounds(self) -> list[tuple[float | None, float | None]]:
-        return [(None, None), (1e-8, None), (0.0, 1.0), (0.0, 1.0)]
+        mu_bound = (0.0, 0.0) if self.zero_mean else (None, None)
+        return [mu_bound, (1e-8, None), (0.0, 1.0), (0.0, 1.0)]
 
     # --- Estimation ---------------------------------------------------------
 
@@ -133,8 +163,11 @@ class GARCH(VolatilityModel):
                 return 1e10  # steer the optimizer away from forbidden regions
             return -self.log_likelihood(params, r)
 
-        # alpha + beta must stay below 1 (with a small safety margin)
-        stationarity = {"type": "ineq", "fun": lambda x: 1 - 1e-6 - x[2] - x[3]}
+        # persistence must stay below 1 (with a small safety margin)
+        stationarity = {
+            "type": "ineq",
+            "fun": lambda x: 1 - 1e-6 - self._make_params(x).persistence,
+        }
 
         result = minimize(
             negative_log_likelihood,
