@@ -2,17 +2,30 @@
 
 Used to test the estimator: simulate data where the true parameters are
 known, fit the model, and check that it recovers them.
+
+Passing GarchParams gives normal shocks; passing StudentTParams gives
+standardized Student-t shocks with nu degrees of freedom.
 """
 
 import numpy as np
 
 from volrisk.models.garch import GarchParams
+from volrisk.models.student_t import StudentTParams
+
+
+def draw_shocks(params: GarchParams, size: int, rng: np.random.Generator) -> np.ndarray:
+    """Draw z_t with mean 0 and variance 1 from the model's shock distribution."""
+    if isinstance(params, StudentTParams):
+        nu = params.nu
+        # a raw t has variance nu / (nu - 2); rescale it to variance 1
+        return rng.standard_t(nu, size) * np.sqrt((nu - 2) / nu)
+    return rng.standard_normal(size)
 
 
 def simulate_garch(
     params: GarchParams, n: int, seed: int | None = None, burn_in: int = 500
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return (returns, sigma2) of length n from a GARCH(1,1) with normal shocks.
+    """Return (returns, sigma2) of length n from a GARCH(1,1) process.
 
     The first `burn_in` days are thrown away so the output does not depend
     on the starting value of the variance.
@@ -22,7 +35,7 @@ def simulate_garch(
 
     rng = np.random.default_rng(seed)
     total = n + burn_in
-    z = rng.standard_normal(total)
+    z = draw_shocks(params, total, rng)
 
     sigma2 = np.empty(total)
     eps = np.empty(total)
