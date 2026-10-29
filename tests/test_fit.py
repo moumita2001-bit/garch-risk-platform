@@ -47,9 +47,15 @@ def test_fit_beats_the_true_parameters_on_likelihood(recovered):
 def test_no_arch_effects_gives_alpha_near_zero():
     flat = GarchParams(mu=0.0, omega=1.0, alpha=0.0, beta=0.0)
     returns, _ = simulate_garch(flat, n=5_000, seed=42)
-    est = GARCH().fit(returns).params
+    model = GARCH()
+    est = model.fit(returns).params
     assert est.alpha < 0.02
-    assert est.long_run_variance == pytest.approx(1.0, rel=0.10)
+    # With alpha = 0, omega and beta are not separately identified: any beta
+    # with omega = (1 - beta) * variance fits equally well, so the optimizer may
+    # stop anywhere on that ridge, even at beta ~ 1 where omega / (1 - beta) is
+    # 0/0. Check what the data does pin down: the fitted variance path.
+    sigma2 = model.conditional_variance(est, returns)
+    assert sigma2.mean() == pytest.approx(1.0, rel=0.10)
 
 
 
