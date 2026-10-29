@@ -7,6 +7,20 @@ name = "volrisk"
 version = "0.1.0"
 description = "Volatility and Value-at-Risk platform built on GARCH models"
 requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "requests",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+research = ["matplotlib", "statsmodels", "arch"]
+dev = ["pytest"]
+
+[project.scripts]
+volrisk = "volrisk.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
