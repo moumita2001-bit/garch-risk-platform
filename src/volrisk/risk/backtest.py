@@ -16,7 +16,6 @@ from scipy import stats
 from scipy.special import xlogy
 
 from volrisk.models import GARCH
-from volrisk.models.garch import garch_variance
 from volrisk.risk.var import shock_quantile
 
 
@@ -47,7 +46,7 @@ def rolling_var(
         # sigma2[t] uses returns up to t-1 only, so it is a genuine forecast.
         # The starting variance comes from the training window alone.
         eps = r[start - window : stop] - params.mu
-        sigma2 = garch_variance(eps, params.omega, params.alpha, params.beta, train.var())
+        sigma2 = model.variance_path(params, eps, train.var())
         sigma = np.sqrt(sigma2[window:])
         var[start:stop] = -(params.mu + sigma * shock_quantile(params, p))
 

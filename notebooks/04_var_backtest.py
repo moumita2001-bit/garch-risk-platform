@@ -17,7 +17,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from volrisk.models import GARCH, StudentTGARCH
+from volrisk.models import GARCH, GJRStudentTGARCH, StudentTGARCH
 from volrisk.risk import basel_zone, christoffersen_test, kupiec_test, rolling_var
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -60,7 +60,7 @@ def verdict(p: float) -> str:
 
 
 def plot(results: dict[str, pd.DataFrame]) -> None:
-    fig, axes = plt.subplots(2, 1, figsize=(11, 7), sharex=True, sharey=True)
+    fig, axes = plt.subplots(len(results), 1, figsize=(11, 3.5 * len(results)), sharex=True, sharey=True)
     for ax, (name, bt) in zip(axes, results.items()):
         breaches = bt[bt["breach"]]
         ax.plot(bt.index, bt["return"], lw=0.4, color="#888780", label="Daily return")
@@ -81,6 +81,9 @@ def main() -> None:
     results = {
         "Normal GARCH": rolling_var(GARCH(), r, P, WINDOW, REFIT_EVERY),
         "Student-t GARCH": rolling_var(StudentTGARCH(), r, P, WINDOW, REFIT_EVERY),
+        "GJR-t GARCH, mu=0": rolling_var(
+            GJRStudentTGARCH(zero_mean=True), r, P, WINDOW, REFIT_EVERY
+        ),
     }
     rows = [summarize(name, bt) for name, bt in results.items()]
     plot(results)

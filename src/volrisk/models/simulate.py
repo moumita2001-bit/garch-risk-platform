@@ -37,12 +37,14 @@ def simulate_garch(
     total = n + burn_in
     z = draw_shocks(params, total, rng)
 
+    gamma = getattr(params, "gamma", 0.0)  # GJR leverage term, 0 otherwise
     sigma2 = np.empty(total)
     eps = np.empty(total)
     sigma2[0] = params.long_run_variance
     eps[0] = np.sqrt(sigma2[0]) * z[0]
     for t in range(1, total):
-        sigma2[t] = params.omega + params.alpha * eps[t - 1] ** 2 + params.beta * sigma2[t - 1]
+        shock_weight = params.alpha + gamma * (eps[t - 1] < 0)
+        sigma2[t] = params.omega + shock_weight * eps[t - 1] ** 2 + params.beta * sigma2[t - 1]
         eps[t] = np.sqrt(sigma2[t]) * z[t]
 
     returns = params.mu + eps
