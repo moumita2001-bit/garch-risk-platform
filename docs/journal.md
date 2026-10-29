@@ -60,3 +60,48 @@ Student-t innovations.
 Implement GARCH(1,1) from scratch: base model class, MLE with
 `scipy.optimize`, a parameter-recovery test on simulated data, and
 validation against the `arch` package.
+
+
+
+## Week 2 — GARCH(1,1) from scratch
+
+**Goal:** Implement GARCH(1,1) estimation myself and prove it is correct
+before relying on it for VaR.
+
+### What I built
+- `models/base.py`: abstract `VolatilityModel` interface so later models
+  (GJR-GARCH, Student-t) plug into the same VaR and backtest code.
+- `models/garch.py`: variance recursion, Gaussian log-likelihood, and
+  maximum-likelihood fit with `scipy.optimize` (SLSQP, with bounds and an
+  alpha + beta < 1 stationarity constraint).
+- `models/simulate.py`: GARCH simulator with burn-in and seeded randomness.
+- 23 new tests (36 total): hand-calculated recursion, likelihood vs
+  `scipy.stats`, statistical properties of simulated data, and
+  parameter recovery on 20,000 simulated days.
+- `notebooks/02_garch_validation.py`: side-by-side comparison with `arch`.
+
+### Results on SPY (2008–2026)
+| Parameter | Mine | arch |
+|---|---|---|
+| alpha | 0.1486 | 0.1486 |
+| beta | 0.8289 | 0.8289 |
+| alpha + beta | 0.9774 | 0.9774 |
+| Long-run vol (annualized) | 18.8% | 18.8% |
+
+Estimates match to 4 decimal places. Log-likelihoods differ by 0.3 because
+the two implementations start the variance recursion differently (sample
+variance vs exponentially weighted backcast).
+
+### What I learned
+- Validate an estimator twice: on simulated data where the truth is known
+  (parameter recovery), and against a trusted reference on real data.
+- Returns must be in percent: on decimal scale omega is ~0.000003 and the
+  optimizer struggles.
+- When alpha = 0, beta and omega are not separately identified; only the
+  long-run variance is. Tests should check what the data can pin down.
+- Simulated GARCH with normal shocks gives excess kurtosis ~2, while SPY
+  shows 14.2. GARCH explains part of the fat tails; Student-t innovations
+  are needed for the rest.
+
+### Next
+Student-t innovations, then turn conditional volatility into 1-day VaR.
