@@ -22,3 +22,7 @@ class VolatilityModel(ABC):
     @abstractmethod
     def log_likelihood(self, params, returns: np.ndarray) -> float:
         """Return the total log-likelihood of the returns under the model."""
+
+    @abstractmethod
+    def fit(self, returns: np.ndarray):
+        """Estimate the model's parameters from a return series."""

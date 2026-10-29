@@ -1,6 +1,6 @@
 """Volatility models for VolRisk."""
 
 from volrisk.models.base import VolatilityModel
-from volrisk.models.garch import GARCH, GarchParams
+from volrisk.models.garch import GARCH, GarchFit, GarchParams
 
-__all__ = ["VolatilityModel", "GARCH", "GarchParams"]
+__all__ = ["VolatilityModel", "GARCH", "GarchFit", "GarchParams"]
