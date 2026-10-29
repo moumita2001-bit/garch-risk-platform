@@ -185,3 +185,47 @@ out of sample on SPY.
 
 ### Next
 FRED/VIX data and a one-command pipeline (Week 5).
+
+
+
+## Week 5 — VIX data and the one-command pipeline
+
+**Goal:** Add an independent volatility source and turn the project into a
+single command a scheduler can run.
+
+### What I built
+- `volrisk.data.fred`: FRED downloader (VIXCLS) with retries on network and
+  5xx errors, fail-fast on 4xx, daily skip, a UTC audit log, and error
+  messages that never include the API key. 8 tests using a fake session.
+- `notebooks/05_vix_vs_garch.py`: GJR-GARCH-t volatility vs VIX.
+- `volrisk run`: download -> clean -> fit GJR-GARCH-t (mu = 0) -> 99%/95% VaR
+  -> `results/spy_<date>.json`. 7 tests for the failure rules (92 total).
+- `pyproject.toml` now declares dependencies and the `volrisk` command, so
+  the project installs on a clean machine (needed for Docker in Week 6).
+
+### Results
+- GARCH vs VIX: correlation 0.90 (levels), 0.75 (daily changes).
+- VIX averaged 19.9% vs 16.2% realized: a variance risk premium of +3.7
+  points, with VIX above realized volatility on 84% of days.
+- First pipeline run (2026-10-29): 99% 1-day VaR of 1.98%.
+
+### Pipeline design decisions
+| Failure | Behaviour |
+|---|---|
+| Price download fails | Stop, write nothing |
+| VIX download fails | Continue, record vix = null |
+| Fit does not converge | Stop, exit code 1 |
+| Run twice in a day | Same file overwritten (idempotent) |
+
+### Problems and fixes
+- An empty `src/volrisk/pipeline/` placeholder package from the initial
+  setup shadowed `pipeline.py`; Python picks a package over a module of the
+  same name. Removed the placeholder.
+
+### What I learned
+- VIX is not a pure forecast: it includes a risk premium, so it sits above
+  realized volatility most of the time.
+- Never publish a risk number from a failed fit; fail loudly instead.
+
+### Next
+Docker image and GitHub Actions CI (Week 6).
