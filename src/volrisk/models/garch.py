@@ -169,19 +169,39 @@ class GARCH(VolatilityModel):
             "fun": lambda x: 1 - 1e-6 - self._make_params(x).persistence,
         }
 
-        result = minimize(
-            negative_log_likelihood,
-            self._initial_guess(r),
-            method="SLSQP",
-            bounds=self._bounds(),
-            constraints=[stationarity],
-            options={"maxiter": 500, "ftol": 1e-9},
-        )
+        # SLSQP occasionally stops at a poor point yet reports success (seen in
+        # CI on flat data). Accept a result only if it succeeded AND is at least
+        # as good as where it started; otherwise retry from other starts.
+        best, best_ok = None, False
+        for start in self._starting_points(self._initial_guess(r)):
+            attempt = minimize(
+                negative_log_likelihood,
+                start,
+                method="SLSQP",
+                bounds=self._bounds(),
+                constraints=[stationarity],
+                options={"maxiter": 500, "ftol": 1e-9},
+            )
+            ok = bool(attempt.success) and attempt.fun <= negative_log_likelihood(start)
+            if best is None or attempt.fun < best.fun:
+                best, best_ok = attempt, ok
+            if ok:
+                break
 
         return GarchFit(
-            params=self._make_params(result.x),
-            log_likelihood=float(-result.fun),
+            params=self._make_params(best.x),
+            log_likelihood=float(-best.fun),
             n_obs=len(r),
-            converged=bool(result.success),
-            message=str(result.message),
+            converged=best_ok,
+            message=str(best.message),
         )
+
+    def _starting_points(self, x0: np.ndarray):
+        """The usual starting guess, then two alternatives with the same
+        long-run variance (lower and higher persistence)."""
+        yield x0
+        long_run = x0[1] / (1 - x0[2] - x0[3])
+        for alpha0, beta0 in [(0.10, 0.85), (0.02, 0.95)]:
+            x = x0.copy()
+            x[1], x[2], x[3] = long_run * (1 - alpha0 - beta0), alpha0, beta0
+            yield x
