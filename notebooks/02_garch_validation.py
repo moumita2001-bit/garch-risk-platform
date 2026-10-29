@@ -62,7 +62,7 @@ def main() -> None:
         ("long-run vol, annualized (%)", annual_vol(mine.params), annual_vol(theirs)),
     ]
     table = "\n".join(
-        f"| {name} | {a:.4f} | {b:.4f} | {a - b:+.4f} |" for name, a, b in rows
+        f"| {name} | {a:.4f} | {b:.4f} | {round(a - b, 4) + 0.0:+.4f} |" for name, a, b in rows
     )
 
     sample_vol = float(r.std() * np.sqrt(TRADING_DAYS))

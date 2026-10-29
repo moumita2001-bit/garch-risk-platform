@@ -105,3 +105,43 @@ variance vs exponentially weighted backcast).
 
 ### Next
 Student-t innovations, then turn conditional volatility into 1-day VaR.
+
+
+
+## Week 3 — Student-t innovations
+
+**Goal:** Test whether fat-tailed shocks explain SPY better than normal shocks.
+
+### What I built
+- Refactored `GARCH.fit()` into hooks (`_make_params`, `_initial_guess`,
+  `_bounds`) so new models subclass instead of copying the optimizer.
+  All 36 existing tests passed unchanged after the refactor.
+- `StudentTGARCH`: standardized Student-t likelihood (via `gammaln`),
+  nu bounded in [2.05, 500]. AIC/BIC now count parameters automatically.
+- Simulator draws t shocks; 11 new tests (47 total), including recovery of
+  nu = 6 from simulated data and AIC/BIC choosing the correct model.
+- `notebooks/03_student_t_comparison.py` and `docs/student_t_comparison.md`.
+
+### Results on SPY
+| | Normal | Student-t |
+|---|---|---|
+| Log-likelihood | -6408.48 | -6268.92 |
+| BIC | 12850.81 | 12580.15 |
+| alpha + beta | 0.977 | 0.996 |
+| nu | – | 5.46 |
+
+- BIC favours Student-t by 271 points.
+- Normal-GARCH residuals still have excess kurtosis 1.87, and 11 days beyond
+  4 sigma against 0.3 expected under normality (14.8 under t).
+- My estimates match `arch` (dist="t") to 3-4 decimal places.
+
+### What I learned
+- GARCH explains most of the fat tails, but not all; the shocks themselves
+  are fat-tailed.
+- Under t, crash days stop distorting the variance dynamics, and persistence
+  rises to 0.996. That makes the long-run variance poorly identified
+  (~34% annualized), so long-horizon forecasts need care.
+- Refactor first and keep the tests green, then add the feature.
+
+### Next
+Turn the 1-day volatility forecast into Value-at-Risk.
