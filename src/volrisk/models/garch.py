@@ -7,7 +7,7 @@ Model (returns in percent):
 Parameters are estimated by maximum likelihood with scipy.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 import numpy as np
 from scipy.optimize import minimize
@@ -15,7 +15,6 @@ from scipy.optimize import minimize
 from volrisk.models.base import VolatilityModel
 
 LOG_2PI = np.log(2 * np.pi)
-N_PARAMS = 4
 
 
 @dataclass(frozen=True)
@@ -62,14 +61,18 @@ class GarchFit:
     message: str
 
     @property
+    def n_params(self) -> int:
+        return len(fields(self.params))
+
+    @property
     def aic(self) -> float:
         """Akaike information criterion (lower is better)."""
-        return 2 * N_PARAMS - 2 * self.log_likelihood
+        return 2 * self.n_params - 2 * self.log_likelihood
 
     @property
     def bic(self) -> float:
         """Bayesian information criterion (lower is better)."""
-        return N_PARAMS * np.log(self.n_obs) - 2 * self.log_likelihood
+        return self.n_params * np.log(self.n_obs) - 2 * self.log_likelihood
 
 
 def garch_variance(
@@ -99,40 +102,51 @@ class GARCH(VolatilityModel):
         sigma2 = self.conditional_variance(params, returns)
         return float(-0.5 * np.sum(LOG_2PI + np.log(sigma2) + eps**2 / sigma2))
 
+    # --- Hooks that subclasses (e.g. Student-t) override -------------------
+
+    def _make_params(self, x: np.ndarray) -> GarchParams:
+        """Turn the optimizer's vector into a parameter object."""
+        return GarchParams(*(float(v) for v in x))
+
+    def _initial_guess(self, r: np.ndarray) -> np.ndarray:
+        """Starting point: typical equity values, omega set so the
+        long-run variance equals the sample variance."""
+        alpha0, beta0 = 0.05, 0.90
+        return np.array([r.mean(), r.var() * (1 - alpha0 - beta0), alpha0, beta0])
+
+    def _bounds(self) -> list[tuple[float | None, float | None]]:
+        return [(None, None), (1e-8, None), (0.0, 1.0), (0.0, 1.0)]
+
+    # --- Estimation ---------------------------------------------------------
+
     def fit(self, returns: np.ndarray) -> GarchFit:
-        """Estimate (mu, omega, alpha, beta) by maximum likelihood.
+        """Estimate the parameters by maximum likelihood.
 
         Returns should be in percent (e.g. 1.2 for a 1.2% day); the optimizer
         is much better behaved on that scale than on decimals like 0.012.
         """
         r = np.asarray(returns, dtype=float)
 
-        # Starting guess: typical equity values, with omega chosen so the
-        # long-run variance equals the sample variance.
-        alpha0, beta0 = 0.05, 0.90
-        x0 = np.array([r.mean(), r.var() * (1 - alpha0 - beta0), alpha0, beta0])
-
         def negative_log_likelihood(x: np.ndarray) -> float:
-            params = GarchParams(*x)
+            params = self._make_params(x)
             if not params.is_valid():
                 return 1e10  # steer the optimizer away from forbidden regions
             return -self.log_likelihood(params, r)
 
-        bounds = [(None, None), (1e-8, None), (0.0, 1.0), (0.0, 1.0)]
         # alpha + beta must stay below 1 (with a small safety margin)
         stationarity = {"type": "ineq", "fun": lambda x: 1 - 1e-6 - x[2] - x[3]}
 
         result = minimize(
             negative_log_likelihood,
-            x0,
+            self._initial_guess(r),
             method="SLSQP",
-            bounds=bounds,
+            bounds=self._bounds(),
             constraints=[stationarity],
             options={"maxiter": 500, "ftol": 1e-9},
         )
 
         return GarchFit(
-            params=GarchParams(*(float(v) for v in result.x)),
+            params=self._make_params(result.x),
             log_likelihood=float(-result.fun),
             n_obs=len(r),
             converged=bool(result.success),
