@@ -102,6 +102,12 @@ class GARCH(VolatilityModel):
         sigma2 = self.conditional_variance(params, returns)
         return float(-0.5 * np.sum(LOG_2PI + np.log(sigma2) + eps**2 / sigma2))
 
+    def forecast_variance(self, params: GarchParams, returns: np.ndarray) -> float:
+        """One-step-ahead forecast: sigma2_{T+1} = omega + alpha*eps_T^2 + beta*sigma2_T."""
+        eps = np.asarray(returns, dtype=float) - params.mu
+        sigma2 = self.conditional_variance(params, returns)
+        return float(params.omega + params.alpha * eps[-1] ** 2 + params.beta * sigma2[-1])
+
     # --- Hooks that subclasses (e.g. Student-t) override -------------------
 
     def _make_params(self, x: np.ndarray) -> GarchParams:
