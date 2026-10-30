@@ -1,10 +1,13 @@
 # garch-risk-platform
 
+[![tests](https://github.com/moumita2001-bit/garch-risk-platform/actions/workflows/tests.yml/badge.svg)](https://github.com/moumita2001-bit/garch-risk-platform/actions/workflows/tests.yml)
+
 VolRisk: a volatility and Value-at-Risk platform for SPY. GARCH-family models
 are built from scratch in Python, validated against the `arch` package, and
 backtested out of sample. One command (`volrisk run`) downloads data, fits the
-model and writes tomorrow's VaR. The platform is being containerized and
-deployed to AWS for daily automated runs (see [Project status](#project-status)).
+model and writes tomorrow's VaR. The pipeline is containerized with Docker and
+tested on every pull request; AWS deployment for daily automated runs is next
+(see [Project status](#project-status)).
 
 ## Architecture
 
@@ -43,6 +46,14 @@ volatility (γ = 0.27, α = 0). [Backtest report](docs/var_backtest.md)
 - `volrisk run` downloads, cleans, fits and writes tomorrow's VaR as JSON
 - [VIX report](docs/vix_vs_garch.md)
 
+**Week 6: CI and Docker**
+- GitHub Actions runs all 92 tests and builds the Docker image on every pull
+  request; both checks are required before merging to `main`
+- Docker image (python:3.12-slim, non-root, no secrets baked in) reproduces
+  the native result exactly: 99% VaR 1.98% on 2026-10-29
+- CI exposed an optimizer that could report success at a poor point; `fit()`
+  now validates its result and retries, and reports non-convergence otherwise
+
 ## Quick start
 
 ~~~bash
@@ -52,7 +63,29 @@ python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,research]"
 cp .env.example .env        # add TIINGO_API_KEY and FRED_API_KEY
 volrisk run                 # writes results/spy_<date>.json
-python -m pytest -q         # 92 tests, no network needed
+python -m pytest -q         # 92 tests, no network or API keys needed
+~~~
+
+### Run with Docker
+
+~~~bash
+docker build -t volrisk .
+docker run --rm --env-file .env -v "$PWD/results:/app/results" volrisk
+~~~
+
+API keys are passed in at run time and never stored in the image.
+
+## Project layout
+
+~~~text
+src/volrisk/
+  data/       Tiingo and FRED downloaders, cleaning and validation
+  models/     GARCH, Student-t and GJR-GARCH-t, simulator
+  risk/       one-day VaR, rolling backtest, Kupiec and Christoffersen tests
+  pipeline.py the daily job (download -> clean -> fit -> VaR)
+  cli.py      the `volrisk` command
+notebooks/    reproducible analysis scripts that generate the reports in docs/
+tests/        92 tests, run in CI on every pull request
 ~~~
 
 ## Project status
