@@ -106,6 +106,11 @@ tests/        92 tests, run in CI on every pull request
 
 Weekly decisions, results and lessons: [docs/journal.md](docs/journal.md)
 
+
+## References
+
+Papers, regulatory documents, data sources and software behind every model and test: [docs/references.md](docs/references.md)
+
 ## License
 
 MIT
