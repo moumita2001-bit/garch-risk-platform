@@ -13,6 +13,8 @@ tested on every pull request; AWS deployment for daily automated runs is next
 
 ![VolRisk platform architecture](docs/architecture.svg)
 
+*Target architecture: the data, models, VaR, pipeline, CI and Docker are built; the AWS components (database, API, dashboard, alerts, Terraform) are being built in Weeks 7–12. See [Project status](#project-status).*
+
 ## Results so far
 
 **Week 1: Stylized facts of SPY returns (2008–2026)**
