@@ -61,8 +61,6 @@ Implement GARCH(1,1) from scratch: base model class, MLE with
 `scipy.optimize`, a parameter-recovery test on simulated data, and
 validation against the `arch` package.
 
-
-
 ## Week 2 — GARCH(1,1) from scratch
 
 **Goal:** Implement GARCH(1,1) estimation myself and prove it is correct
@@ -98,15 +96,14 @@ variance vs exponentially weighted backcast).
 - Returns must be in percent: on decimal scale omega is ~0.000003 and the
   optimizer struggles.
 - When alpha = 0, beta and omega are not separately identified; only the
-  long-run variance is. Tests should check what the data can pin down.
+  overall variance level is. Tests should check what the data can pin down
+  (this came back in Week 6).
 - Simulated GARCH with normal shocks gives excess kurtosis ~2, while SPY
   shows 14.2. GARCH explains part of the fat tails; Student-t innovations
   are needed for the rest.
 
 ### Next
 Student-t innovations, then turn conditional volatility into 1-day VaR.
-
-
 
 ## Week 3 — Student-t innovations
 
@@ -145,7 +142,6 @@ Student-t innovations, then turn conditional volatility into 1-day VaR.
 
 ### Next
 Turn the 1-day volatility forecast into Value-at-Risk.
-
 
 ## Week 4 — Value-at-Risk and backtesting
 
@@ -186,8 +182,6 @@ out of sample on SPY.
 ### Next
 FRED/VIX data and a one-command pipeline (Week 5).
 
-
-
 ## Week 5 — VIX data and the one-command pipeline
 
 **Goal:** Add an independent volatility source and turn the project into a
@@ -214,7 +208,7 @@ single command a scheduler can run.
 |---|---|
 | Price download fails | Stop, write nothing |
 | VIX download fails | Continue, record vix = null |
-| Fit does not converge | Stop, exit code 1 |
+| Fit does not converge (checked against its starting point since Week 6) | Stop, exit code 1 |
 | Run twice in a day | Same file overwritten (idempotent) |
 
 ### Problems and fixes
@@ -225,7 +219,51 @@ single command a scheduler can run.
 ### What I learned
 - VIX is not a pure forecast: it includes a risk premium, so it sits above
   realized volatility most of the time.
+- FRED publishes VIX with a one-day lag, so the results file records VIX's
+  own date rather than assuming it matches the price date.
 - Never publish a risk number from a failed fit; fail loudly instead.
 
 ### Next
 Docker image and GitHub Actions CI (Week 6).
+
+## Week 6 — CI and Docker
+
+**Goal:** Prove the code works on a clean machine and package it for the cloud.
+
+### What I built
+- GitHub Actions workflow: on every PR and push to `main`, installs the
+  project from `pyproject.toml` on fresh Ubuntu and runs all 92 tests.
+- `Dockerfile` (python:3.12-slim, runtime dependencies only, non-root user,
+  `ENTRYPOINT volrisk`) and `.dockerignore`. Image: 444 MB.
+- CI also builds the image and smoke-tests it. Both `test` and `docker` are
+  required checks on `main` via a repository ruleset.
+- README updated with Weeks 3-5 results, a quick start and a project status
+  table; removed the unused Stooq key from `.env.example`.
+
+### Results
+- Containerized run: 99% VaR 1.98%, identical to the native run.
+- Without API keys the container fails with a clear error and exit code 1,
+  which is what the AWS scheduler will use to detect failures.
+- API keys are never in the image; they are passed at run time.
+
+### Problems and fixes (found by CI)
+- A test failed on GitHub but passed on my Mac. With alpha = 0, omega and
+  beta are not separately identified, and a newer scipy landed elsewhere on
+  the flat likelihood ridge.
+- A re-run passed, but the test was flaky: SLSQP sometimes reported success
+  at a poor point. Fixed `fit()` to accept a result only if it beats its
+  starting point, retry from two alternative starts, and otherwise report
+  `converged=False`, so the pipeline refuses to publish a VaR from a bad fit.
+- Verified with four consecutive green CI runs. Also updated the GitHub
+  actions to their Node 24 versions to clear a deprecation warning.
+
+### What I learned
+- "Works on my machine" is not evidence; a clean CI machine with fresh
+  package versions is.
+- A green re-run does not fix a flaky test; find the cause.
+- Order Dockerfile steps so dependencies are cached and code changes
+  rebuild fast.
+
+### Next
+Week 7: AWS fundamentals (IAM, S3, ECR, ECS/Fargate, VPC, pricing), open the
+account and set a budget alert. Nothing deployed yet.

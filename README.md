@@ -63,7 +63,7 @@ python -m pytest -q         # 92 tests, no network needed
 | GARCH, Student-t and GJR models built from scratch | Done |
 | VaR and out-of-sample backtesting | Done |
 | One-command daily pipeline | Done |
-| Docker image and CI | In progress |
+| Docker image and CI | Done |
 | AWS deployment (Fargate, S3, scheduled runs) | Planned |
 | Monitoring and REST API | Planned |
 
